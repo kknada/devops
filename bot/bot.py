@@ -194,8 +194,11 @@ def confirm_save_email(update: Update, context):
                     try:
                         with connection, cursor:
                             for email in context.user_data['email_list']:
-                                cursor.execute("INSERT INTO email (email) VALUES (%s);", (email,))
-                            connection.commit()
+                                try:
+                                    cursor.execute("INSERT INTO email (email) VALUES (%s);", (email,))
+                                except Exception as e:
+                                    pass
+                                connection.commit()                            
                             logging.info("Команда успешно выполнена")
                             update.message.reply_text('Email адреса успешно сохранены в БД.')
                     except (Exception, Error) as error:
@@ -248,8 +251,11 @@ def confirm_save_number(update: Update, context):
                     try:
                         with connection, cursor:
                             for phone_number in context.user_data['phone_list']:
-                                cursor.execute("INSERT INTO phone_numbers (phone_numbers) VALUES (%s);", (phone_number,))
-                            connection.commit()
+                                try:
+                                    cursor.execute("INSERT INTO phone_numbers (phone_numbers) VALUES (%s);", (phone_number,))
+                                except Exception as e:
+                                    pass
+                                connection.commit()   
                             logging.info("Команда успешно выполнена")
                             update.message.reply_text('Номера телефонов успешно сохранены в БД.')
                     except (Exception, Error) as error:
@@ -372,11 +378,22 @@ def get_free(update: Update, context):
     return ConversationHandler.END
 
 def get_mpstat(update: Update, context):
-    update.message.reply_text(f'Сбор информации о производительности системы.')
-    result = ssh_connect(update, "mpstat")
-    if result:
+    try:
+        update.message.reply_text(f'Сбор информации о производительности системы.')
+        result = f'{ssh_connect(update, "uname -a")} \n {ssh_connect(update, "uname -r")} \n {ssh_connect(update, "lscpu")}'
         update.message.reply_text(result)
-    return ConversationHandler.END
+        if result:
+            chunk = ''
+            result_lines = result.split(' ')
+            for line in result_lines:
+                if len(chunk + line) <= 4000:  # Ограничение по размеру сообщения
+                    chunk += line 
+                else:
+                    update.message.reply_text(chunk)
+                    chunk = line
+        return ConversationHandler.END
+    except Exception as e:
+        update.message.reply_text(str(e))
 
 def get_w(update: Update, context):
     update.message.reply_text(f'Сбор информации о работающих в данной системе пользователях. ')
@@ -431,8 +448,17 @@ def get_ss(update: Update, context):
 
 def get_apt_list(update: Update, context):
     update.message.reply_text(f'Сбор информации об установленных пакетах. ')
-    
-    result = ssh_connect(update, "dpkg --get-selections")
+    psfp5 = update.message.text.split(' ')
+    if len(psfp5) > 1:
+        i = 1
+        command = ''
+        while i < len(psfp5):
+            command += f'{psfp5[i]} '
+            i += 1
+        result = ssh_connect(update, f'apt show {command}')
+        update.message.reply_text(str(result)[0:100])
+    else:
+        result = ssh_connect(update, "dpkg --get-selections")
     if result:
         result_lines = result.split('n')
         chunk = ''
@@ -443,9 +469,7 @@ def get_apt_list(update: Update, context):
                 update.message.reply_text(chunk)
                 chunk = line + 'n'
         # Отправляем оставшийся кусочек
-        if chunk:
-            update.message.reply_text(chunk)
-            
+        update.message.reply_text(chunk)
     return ConversationHandler.END
 
 
