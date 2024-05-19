@@ -81,6 +81,13 @@
   vars_files:
     - vars.yml
   tasks:
+    - name: Installing PostgreSQL
+      apt:
+        name:
+          - postgresql
+          - postgresql-contrib
+          - libpq-dev
+          - python3-psycopg2
     - name: Set User Access Configuration
       postgresql_pg_hba:
         dest: "/etc/postgresql/14/main/pg_hba.conf"
